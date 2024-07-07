@@ -68,9 +68,9 @@ def remove_same_contours(contours):
         pos = get_contour_pos(cnt)
         if pos not in pos_map:
             pos_map[pos] = True
-        else:
-            
             valid_contours.append(cnt)
+
+            
         print(i)    
     contours = tuple(valid_contours)
     return contours
@@ -100,6 +100,8 @@ base_img = img.copy()
 img = blur(img, 3)
 img = apply_canny_filter(img,lower_threshold=0, higher_threshold=95)
 cv2.imshow("img",img)
+cv2.imwrite("Output_edges.png", img)
+cv2.waitKey(0)
 contours = get_contours(img)
 
 print("Length of contours before:", len(contours))

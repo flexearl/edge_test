@@ -5,7 +5,7 @@ import time
 
 
 start_time = time.time()
-img = cv2.imread('images/data_highlights.png')
+img = cv2.imread('images/hubspot_top.png')
 
 reader = eo.Reader(['en'], gpu=True)
 
