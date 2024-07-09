@@ -16,8 +16,8 @@ for t in text:
     bbox, text, score = t
     l_bbox = bbox[0][0]
     l_bbox1 = bbox[0][1]
-    r_bbox = bbox[2][0]
-    r_bbox1 = bbox[2][1]
+    r_bbox = bbox[2][0]-2
+    r_bbox1 = bbox[2][1]-2
 
     cv2.rectangle(img, (int(l_bbox), int(l_bbox1)), (int(r_bbox), int(r_bbox1)), (0, 255, 0),-1)
     #cv2.putText(img, text, (int(l_bbox), int(l_bbox1)), cv2.FONT_HERSHEY_COMPLEX, 1, (255, 0 ,0), 2)
