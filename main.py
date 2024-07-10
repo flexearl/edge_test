@@ -1,6 +1,8 @@
 import cv2
 import numpy as np
 import math
+import utils
+import hierarchy
 
 def apply_sobel_filter(img, kernel_size=5):
     # Sobel Edge Detection
@@ -31,13 +33,11 @@ def merge_contours(contour1, contour2):
 
 def merge_matches(contours,current_cnt,matches, keys):
     for i in range(len(keys)):
-        
         if keys[i] in matches and len(matches[keys[i]]) == 0:
-            print("Key:", keys[i])
             current_cnt = merge_contours(current_cnt, contours[keys[i]])
             del matches[keys[i]]
         elif keys[i] in matches:
-            print("Key:", keys[i])
+            
             current_cnt = merge_matches(contours, current_cnt, matches, matches[keys[i]])
             
             del matches[keys[i]]
@@ -50,7 +50,6 @@ def group_contours(contours, threshold_distance):
     matches = {}
 
     for i in range(len(contours)):
-
         for j in range(i+1,len(contours)):
             if i != j:
                 distance = calculate_contour_distance(contours[i], contours[j])
@@ -61,18 +60,17 @@ def group_contours(contours, threshold_distance):
                         matches[i].append(j)
 
         if i not in matches:
-            print("Adding after")
             matches[i] = []
 
     merged_contours = []
-    print(matches)
+    
     
     for key in matches.copy():
        
         if key in matches:
-            print("Key:", key)
+        
             arr = matches[key]
-            print(arr)
+            
             if len(arr) != 0:
                 merged = merge_matches(contours, contours[key], matches, arr)
                 merged_contours.append(merged)
@@ -99,14 +97,7 @@ def group_contours(contours, threshold_distance):
             grouped_contours.append(contours[i])
     return tuple(grouped_contours)
 
-def get_contour_pos(cnt):
-    M = cv2.moments(cnt)
-    cx=-1
-    cy=-1
-    if M['m00'] !=0:
-        cx = int(M['m10'] / M['m00'])
-        cy = int(M['m01'] / M['m00']) 
-    return cx, cy
+
 
 def apply_canny_filter(img, lower_threshold=100, higher_threshold=200):
     edges = cv2.Canny(image=img.copy(), threshold1=lower_threshold, threshold2=higher_threshold)
@@ -136,8 +127,8 @@ def show_seperate_cnt(img, contours):
    
     for i, cnt in enumerate(contours):
         black = np.zeros(img.shape, dtype = np.uint8)
-        pos = get_contour_pos(cnt)
-        print("Pos:", pos)
+       
+       
         cv2.drawContours(black, [cnt], -1, (255, 0, 0), 1) 
         cv2.imwrite(f"seperate_cnt/{i}.png",black)
        
@@ -149,13 +140,13 @@ def remove_same_contours(contours):
     pos_map = {}
     valid_contours = []
     for i, cnt in enumerate(contours):
-        pos = get_contour_pos(cnt)
+        pos = utils.get_contour_pos_centre(cnt)
         if pos not in pos_map:
             pos_map[pos] = True
             valid_contours.append(cnt)
 
             
-        print(i)    
+          
     contours = tuple(valid_contours)
     return contours
 
@@ -165,36 +156,23 @@ def output_cnt_area(contours):
         output += str(cv2.contourArea(cnt))+", "
     print(output)
 
-class Shape:
-    def __init__(self, x, y, w, h):
-        self.x = x 
-        self.y = y 
-        self.w = w 
-        self.h = h
-    def is_valid_shape(self, img_shape):
-        return self.x>0 and self.x<img_shape[1] and self.y>0 and self.y<img_shape[0] 
 
-def get_bounding_box_of_contour(cnt,offset=0):
-  # Only draw the the largest number of boxes
 
-    # Use OpenCV boundingRect function to get the details of the contour
-    x,y,w,h = cv2.boundingRect(cnt)
-    shape = Shape(x-offset,y-offset, w+offset, h+offset)
-    return True, shape
-
-def crop_img_in_shape(img, shape, offset=0):
-    
-    cropped_img=img[shape.y-offset:shape.y+(shape.h+offset), shape.x-offset:shape.x+(shape.w+offset)]
-    
-    return cropped_img
+def remove_lower_area_cnt(sorted_contours, lowest_area):
+    sorted_contours = list(sorted_contours)
+    for i, cnt in enumerate(sorted_contours):
+        area = cv2.contourArea(cnt)
+        if area>lowest_area:
+            return tuple(sorted_contours[i:])
 
 
 img = cv2.imread("Output.png")
 
 print(img.shape)
-
-img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 img = cv2.resize(img, (0,0), fx=3.0, fy=3.0) 
+original_img = img.copy()
+img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
 EDGE_METHOD = 'canny'
 FONT = cv2.FONT_HERSHEY_SIMPLEX  
 ORG = (50, 50) 
@@ -205,7 +183,7 @@ base_img = img.copy()
 
 
 img = blur(img, 3)
-img = apply_canny_filter(img,lower_threshold=0, higher_threshold=95)
+img = apply_canny_filter(img,lower_threshold=0, higher_threshold=40)
 cv2.imshow("img",img)
 cv2.imwrite("Output_edges.png", img)
 cv2.waitKey(0)
@@ -216,9 +194,13 @@ contours = get_contours(img)
 print("Length of contours before:", len(contours))
 contours = remove_same_contours(contours)
 print("Length of contours after removal:", len(contours))
+
 #contours = sorted(contours, key=cv2.contourArea, reverse=False)
-merged_contours = group_contours(contours, threshold_distance=50)
+merged_contours = group_contours(contours, threshold_distance=30)
 print("Length of contours after cluster:", len(merged_contours))
+merged_contours = sorted(merged_contours, key=cv2.contourArea, reverse=False)
+merged_contours = remove_lower_area_cnt(merged_contours, 5)
+output_cnt_area(merged_contours)
 
 hull = []
 
@@ -228,17 +210,40 @@ for i, cnt in enumerate(merged_contours):
 
 
 for i, cnt in enumerate(hull):
-    _,hull_shape = get_bounding_box_of_contour(cnt)
-    cropped_img = crop_img_in_shape(img.copy(), hull_shape, offset=5)
-    cv2.imwrite(f"cropped/{i}.png", cropped_img)
+    _,hull_shape = utils.get_bounding_box_of_contour(cnt)
+    cropped_img = utils.crop_img_in_shape(img.copy(), hull_shape, offset=5)
+    
+    x,y = cropped_img.shape
+    if x != 0 and y != 0:
+        cv2.imwrite(f"cropped/{i}.png", cropped_img)
 
 
 show_seperate_cnt(img, contours=hull)
 
 black = np.zeros(img.shape, dtype = np.uint8)
 
-cv2.drawContours(black, hull, -1, (255, 0, 0), 1) 
-cv2.imwrite(f"final_contours.png",black)
+
+#cv2.drawContours(original_img, hull, -1, (0,0,255), 2) 
+cv2.imwrite(f"final_contours.png",original_img)
+
+sorted_x_contours = sorted(hull, key =lambda x: utils.get_contour_pos_left(x)[0])
+hierarchy_map = hierarchy.create_hierarchy_map(sorted_x_contours, img=original_img)
+print(hierarchy_map)
+for key in hierarchy_map:
+    inside_contours_idx = hierarchy_map[key]
+    inside_cnt = []
+    print("Length of inside contours:", len(inside_contours_idx))
+    for i in range(len(inside_contours_idx)):
+        inside_cnt.append(sorted_x_contours[inside_contours_idx[i]])
+    inside_cnt.append(sorted_x_contours[key])
+    inside_cnt = tuple(inside_cnt)
+    _,bounds = utils.get_bounding_box_of_contour(cnt)
+    pos = utils.get_contour_pos_left(cnt)
+    cv2.drawContours(original_img, inside_cnt, -1, (0,0,255), 2)
+    #cv2.putText(original_img, str(f"{pos}-({pos[0]+bounds.w}, {pos[1]+bounds.h})"), pos, FONT, FONTSCALE, COLOR, THICKNESS)
+cv2.imwrite("Image.png", original_img)
+cv2.waitKey(0)
+
 
 '''
 for i in range(1, 10,2):
