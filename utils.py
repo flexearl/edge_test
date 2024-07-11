@@ -48,3 +48,24 @@ def output_cnt_pos(contours):
     for i, cnt in enumerate(contours):
         output += str(get_contour_pos_centre(cnt)) +", "
     print(output)
+
+def get_contours(img, mode=cv2.RETR_TREE):
+    if len(img.shape) == 3:
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) 
+    img = blur(img, 3)
+    img = apply_canny_filter(img,lower_threshold=0, higher_threshold=40)
+    contours, _ = cv2.findContours(img,  
+    mode, cv2.CHAIN_APPROX_SIMPLE)
+    return contours
+
+
+def blur(img, strength=3):
+    img_blur = cv2.GaussianBlur(img, (strength,strength), 0)
+    return img_blur
+
+ 
+    
+
+def apply_canny_filter(img, lower_threshold=100, higher_threshold=200):
+    edges = cv2.Canny(image=img.copy(), threshold1=lower_threshold, threshold2=higher_threshold)
+    return edges
